@@ -75,49 +75,84 @@ y = df['Transported']
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# Split the training data into training and validation sets
-X_train_split, X_val, y_train_split, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=1)
 
-# Initialize lists to store accuracies
-train_accuracies = []
-val_accuracies = []
+######################################
+# Hyperparameter Tuning n_estimators
+######################################
+optimal_n_estimators = 48
+"""
 
-# Define the range of n_estimators
-n_estimators_range = np.logspace(0, 4, num=100, dtype=int)
+# Define the range of n_estimators. 10^1.7 ~50
+#n_estimators_range = np.logspace(1, 1.7, num=50, dtype=int)
+n_estimators_range = np.arange(10, 50, 1)
 
-# Iterate over the range of n_estimators
-for n_estimators in n_estimators_range:
-    # Initialize the random forest model
-    rf_model = RandomForestClassifier(n_estimators=n_estimators, random_state=0)
+# Initialize lists to store accuracies for each split
+all_train_accuracies = []
+all_val_accuracies = []
+
+# Perform the calculations four times with different splits
+for i in range(30):
+    print(f"Iteration {i+1}")
+    # Split the training data into training and validation sets
+    X_train_split, X_val, y_train_split, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=i)
     
-    # Train the model
-    rf_model.fit(X_train_split, y_train_split)
+    # Initialize lists to store accuracies for this split
+    train_accuracies = []
+    val_accuracies = []
     
-    # Calculate accuracy on the training set
-    train_accuracy = rf_model.score(X_train_split, y_train_split)
-    train_accuracies.append(train_accuracy)
+    # Iterate over the range of n_estimators
+    for n_estimators in n_estimators_range:
+        print(f"Training with n_estimators={n_estimators}")
+        # Initialize the random forest model
+        rf_model = RandomForestClassifier(n_estimators=n_estimators, random_state=0)
+        
+        # Train the model
+        rf_model.fit(X_train_split, y_train_split)
+        
+        # Calculate accuracy on the training set
+        train_accuracy = rf_model.score(X_train_split, y_train_split)
+        train_accuracies.append(train_accuracy)
+        
+        # Calculate accuracy on the validation set
+        val_accuracy = rf_model.score(X_val, y_val)
+        val_accuracies.append(val_accuracy)
     
-    # Calculate accuracy on the validation set
-    val_accuracy = rf_model.score(X_val, y_val)
-    val_accuracies.append(val_accuracy)
+    # Store the accuracies for this split
+    all_train_accuracies.append(train_accuracies)
+    all_val_accuracies.append(val_accuracies)
+
+# Calculate the mean accuracies across all splits
+mean_train_accuracies = np.mean(all_train_accuracies, axis=0)
+mean_val_accuracies = np.mean(all_val_accuracies, axis=0)
 
 # Plot the accuracies
 plt.figure(figsize=(10, 6))
-sns.lineplot(x=n_estimators_range, y=train_accuracies, label='Training Accuracy')
-sns.lineplot(x=n_estimators_range, y=val_accuracies, label='Validation Accuracy')
+sns.lineplot(x=n_estimators_range, y=mean_train_accuracies, label='Training Accuracy')
+sns.lineplot(x=n_estimators_range, y=mean_val_accuracies, label='Validation Accuracy')
 plt.xscale('log')
 plt.xlabel('Number of Estimators')
 plt.ylabel('Accuracy')
 plt.title('Training and Validation Accuracy vs. Number of Estimators')
 plt.legend()
+
+# Mark the optimal number of estimators
+optimal_n_estimators = n_estimators_range[np.argmax(mean_val_accuracies)]
+plt.axvline(optimal_n_estimators, color='r', linestyle='--', label=f'Optimal n_estimators: {optimal_n_estimators}')
+plt.legend()
 plt.show()
+
+# Print the optimal number of estimators
+print(f"Optimal number of estimators: {optimal_n_estimators}")
+
+"""
+
+
 
 ######################################
 # Training Random Forest Model
 ######################################
 
 # Initialize the random forest model with the optimal number of estimators
-optimal_n_estimators = n_estimators_range[np.argmax(val_accuracies)]
 rf_model = RandomForestClassifier(n_estimators=optimal_n_estimators, random_state=0)
 
 # Train the model
