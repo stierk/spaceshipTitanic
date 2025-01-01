@@ -11,59 +11,67 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 #neural network
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.models import Sequential # type: ignore
+from tensorflow.keras.layers import Dense # type: ignore
 from sklearn.ensemble import RandomForestClassifier
 
-#Read the data
-fileName = "train.csv"
+# Function to preprocess the data
+def preprocess_data(df, label_encoder=None):
+    dropped_rows = df[df.isnull().any(axis=1)]
+    df = df.dropna()
+    df.drop(['Name', 'PassengerId'], axis=1, inplace=True)
+    df[['Cabin_Deck', 'Cabin_Num', 'Cabin_Side']] = df['Cabin'].str.split('/', expand=True)
+    df['Cabin_Num'] = df['Cabin_Num'].astype(int)
+    df.drop('Cabin', axis=1, inplace=True)
+    
+    if label_encoder is None:
+        label_encoder = LabelEncoder()
+        df['HomePlanet'] = label_encoder.fit_transform(df['HomePlanet'])
+        df['Cabin_Deck'] = label_encoder.fit_transform(df['Cabin_Deck'])
+        df['Cabin_Side'] = label_encoder.fit_transform(df['Cabin_Side'])
+        df['Destination'] = label_encoder.fit_transform(df['Destination'])
+    else:
+
+        # Add new labels to the label encoder for HomePlanet
+        new_labels = set(df['HomePlanet']) - set(label_encoder.classes_)
+        if new_labels:
+            label_encoder.classes_ = np.append(label_encoder.classes_, list(new_labels))
+        df['HomePlanet'] = label_encoder.transform(df['HomePlanet'])
+
+        # Add new labels to the label encoder for Cabin_Deck
+        new_labels = set(df['Cabin_Deck']) - set(label_encoder.classes_)
+        if new_labels:
+            label_encoder.classes_ = np.append(label_encoder.classes_, list(new_labels))
+        df['Cabin_Deck'] = label_encoder.transform(df['Cabin_Deck'])
+
+        # Add new labels to the label encoder for Cabin_Side
+        new_labels = set(df['Cabin_Side']) - set(label_encoder.classes_)
+        if new_labels:
+            label_encoder.classes_ = np.append(label_encoder.classes_, list(new_labels))
+        df['Cabin_Side'] = label_encoder.transform(df['Cabin_Side'])
+
+        # Add new labels to the label encoder for Destination
+        new_labels = set(df['Destination']) - set(label_encoder.classes_)
+        if new_labels:
+            label_encoder.classes_ = np.append(label_encoder.classes_, list(new_labels))
+        df['Destination'] = label_encoder.transform(df['Destination'])
+    
+    df['VIP'] = df['VIP'].astype(str).str.strip().fillna('False').map({"True": 1, "False": 0}).astype(int)
+    df['CryoSleep'] = df['CryoSleep'].astype(str).str.strip().map({'True': 1, 'False': 0}).astype(int)
+    
+    return df, label_encoder, dropped_rows
+
+# Read the data
+fileName = "data/train.csv"
 df = pd.read_csv(fileName)
-#print(df.head())
 
-######################################
-# Data Preprocessing
-######################################
-#Check for missing values
-missing_values = df.isnull().sum()
-#print(missing_values)
-#print(len(df)," rows before dropping missing values")
-df = df.dropna()
-#print(len(df), " rows after dropping missing values")
+# Check if 'Earth' is in the 'HomePlanet' column
+# There was the error that value Earth does not exist and label encoder was confused
+contains_earth = 'Earth' in df['HomePlanet'].values
+print(f"Does the 'HomePlanet' column contain 'Earth'? {contains_earth}")
 
-#drop columns that are not needed
-df.drop(['Name','PassengerId'], axis=1, inplace=True)
-
-# Create new columns from 'Cabin', as this column contains three information (deck, number and side)
-df[['Cabin_Deck', 'Cabin_Num', 'Cabin_Side']] = df['Cabin'].str.split('/', expand=True)
-df['Cabin_Num'] = df['Cabin_Num'].astype(int)
-df.drop('Cabin', axis=1, inplace=True)
-
-# Check to see the number of unique values in 'Destination'
-#unique_destinations = df['Destination'].unique()
-#print("Unique values in 'Destination':", unique_destinations)
-
-# Label encode the 'HomePlanet', 'Cabin_Deck', and 'Cabin_Side' columns
-# they were originally categorical columns
-label_encoder = LabelEncoder()
-df['HomePlanet'] = label_encoder.fit_transform(df['HomePlanet'])
-df['Cabin_Deck'] = label_encoder.fit_transform(df['Cabin_Deck'])
-df['Cabin_Side'] = label_encoder.fit_transform(df['Cabin_Side'])
-df['Destination'] = label_encoder.fit_transform(df['Destination'])
-
-# Convert 'VIP' and 'CryoSleep' columns to 1 and 0
-df['VIP'] = df['VIP'].astype(str).str.strip()
-df['VIP'] = df['VIP'].fillna('False').map({"True": 1, "False": 0}).astype(int)
-
-df['CryoSleep'] = df['CryoSleep'].astype(str).str.strip()
-df['CryoSleep'] = df['CryoSleep'].map({'True': 1, 'False': 0}).astype(int)
-
-
-# Visualize the regression coefficient between all features and 'Transported'
-"""correlation_matrix = df.corr()
-plt.figure(figsize=(10, 8))
-sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
-plt.title('Correlation Matrix')
-plt.show()"""
+# Preprocess the training data
+df, label_encoder, _ = preprocess_data(df)
 
 ######################################
 # Training Linear Regression Model
@@ -113,7 +121,7 @@ nn_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accurac
 nn_model.fit(X_train, y_train, epochs = 100, batch_size = 10000, verbose = 0, validation_split = 0.2)
 
 # Make predictions
-y_pred = nn_model.predict(X_test)
+y_pred = nn_model.predict(X_test).flatten()
 y_pred = np.round(y_pred).astype(int)
 
 # Evaluate the model
@@ -145,3 +153,35 @@ accuracy_rf = np.mean(y_pred_rf == y_test)
 print(f"Mean Squared Error: Random Forest {mse_rf}")
 print(f"R-squared: Random Forest {r2_rf}")
 print(f"Accuracy: Random Forest {accuracy_rf}")
+
+######################################
+# Predicting on Test Data and Saving Results
+######################################
+
+# Load the test data
+test_fileName = "data/test.csv"
+test_df = pd.read_csv(test_fileName)
+
+# Save PassengerId for the final output
+passenger_ids = test_df['PassengerId']
+
+# Preprocess the test data
+test_df, _, dropped_rows = preprocess_data(test_df, label_encoder)
+
+# Remove PassengerIds which are both in test_df and dropped_rows. PassengerIds in 
+# dropped_rows have missing values and will be added later
+passenger_ids = passenger_ids[~passenger_ids.isin(dropped_rows['PassengerId'])]
+
+# Predict the Transported column using the Random Forest model
+predictions = rf_model.predict(test_df)
+
+# Create a DataFrame with PassengerId and the predicted Transported column
+output_df = pd.DataFrame({'PassengerId': passenger_ids, 'Transported': predictions})
+
+# Add dropped rows with Transported = 0
+dropped_rows['Transported'] = 0
+output_df = pd.concat([output_df, dropped_rows[['PassengerId', 'Transported']]], ignore_index=True)
+
+# Save the result as a CSV file
+output_df.to_csv('data/prediction.csv', index=False)
+
