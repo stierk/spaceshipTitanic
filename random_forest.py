@@ -65,17 +65,8 @@ def preprocess_data(df, label_encoder=None):
 fileName = "data/train.csv"
 df = pd.read_csv(fileName)
 
-# Check if 'Earth' is in the 'HomePlanet' column
-# There was the error that value Earth does not exist and label encoder was confused
-contains_earth = 'Earth' in df['HomePlanet'].values
-print(f"Does the 'HomePlanet' column contain 'Earth'? {contains_earth}")
-
 # Preprocess the training data
 df, label_encoder, _ = preprocess_data(df)
-
-######################################
-# Training Linear Regression Model
-######################################
 
 # Split the data into features and target variable
 X = df.drop('Transported', axis=1)
@@ -84,60 +75,50 @@ y = df['Transported']
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# Initialize the linear regression model
-model = LinearRegression()
+# Split the training data into training and validation sets
+X_train_split, X_val, y_train_split, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=1)
 
-# Train the model
-model.fit(X_train, y_train)
+# Initialize lists to store accuracies
+train_accuracies = []
+val_accuracies = []
 
-# Make predictions
-y_pred = model.predict(X_test)
+# Define the range of n_estimators
+n_estimators_range = np.logspace(0, 4, num=100, dtype=int)
 
-# Evaluate the model
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-accuracy = np.mean(np.round(y_pred) == y_test)
+# Iterate over the range of n_estimators
+for n_estimators in n_estimators_range:
+    # Initialize the random forest model
+    rf_model = RandomForestClassifier(n_estimators=n_estimators, random_state=0)
+    
+    # Train the model
+    rf_model.fit(X_train_split, y_train_split)
+    
+    # Calculate accuracy on the training set
+    train_accuracy = rf_model.score(X_train_split, y_train_split)
+    train_accuracies.append(train_accuracy)
+    
+    # Calculate accuracy on the validation set
+    val_accuracy = rf_model.score(X_val, y_val)
+    val_accuracies.append(val_accuracy)
 
-print(f"Mean Squared Error: Linear Regression {mse}")
-print(f"R-squared: Linear Regression {r2}")
-print(f"Accuracy: Linear Regression {accuracy}")
-
-######################################
-# Training Neural Network Model 
-######################################
-
-# Define the neural network model
-nn_model = Sequential()
-nn_model.add(tf.keras.Input(shape=(X_train.shape[1],)))
-nn_model.add(Dense(7, activation='relu'))
-nn_model.add(Dense(7, activation='relu'))
-nn_model.add(Dense(3, activation='relu'))
-nn_model.add(Dense(1, activation='sigmoid'))
-
-# Compile the model
-nn_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-# Train the model
-nn_model.fit(X_train, y_train, epochs = 100, batch_size = 10000, verbose = 0, validation_split = 0.2)
-
-# Make predictions
-y_pred = nn_model.predict(X_test).flatten()
-y_pred = np.round(y_pred).astype(int)
-
-# Evaluate the model
-mse = mean_squared_error(y_test, y_pred)
-accuracy = np.mean(y_pred == y_test)
-
-print(f"Mean Squared Error: Neural Network {mse}")
-print(f"R-squared: Neural Network {r2}")
-print(f"Accuracy: Neural Network {accuracy}")
+# Plot the accuracies
+plt.figure(figsize=(10, 6))
+sns.lineplot(x=n_estimators_range, y=train_accuracies, label='Training Accuracy')
+sns.lineplot(x=n_estimators_range, y=val_accuracies, label='Validation Accuracy')
+plt.xscale('log')
+plt.xlabel('Number of Estimators')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy vs. Number of Estimators')
+plt.legend()
+plt.show()
 
 ######################################
 # Training Random Forest Model
 ######################################
 
-# Initialize the random forest model
-rf_model = RandomForestClassifier(n_estimators=100, random_state=0)
+# Initialize the random forest model with the optimal number of estimators
+optimal_n_estimators = n_estimators_range[np.argmax(val_accuracies)]
+rf_model = RandomForestClassifier(n_estimators=optimal_n_estimators, random_state=0)
 
 # Train the model
 rf_model.fit(X_train, y_train)
@@ -181,6 +162,9 @@ output_df = pd.DataFrame({'PassengerId': passenger_ids, 'Transported': predictio
 # Add dropped rows with Transported = 0
 dropped_rows['Transported'] = 0
 output_df = pd.concat([output_df, dropped_rows[['PassengerId', 'Transported']]], ignore_index=True)
+
+# Translate 1 to 'True' and 0 to 'False'
+output_df['Transported'] = output_df['Transported'].map({1: 'True', 0: 'False'})
 
 # Save the result as a CSV file
 output_df.to_csv('data/prediction.csv', index=False)
