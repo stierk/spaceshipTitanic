@@ -79,7 +79,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 ######################################
 # Hyperparameter Tuning n_estimators
 ######################################
-optimal_n_estimators = 1000 #-> tuning would say 48 but more seems better eventhough validation
+optimal_n_estimators = 2000 #-> tuning would say 48 but more seems better eventhough validation
 # says otherwise???
 """
 
@@ -218,11 +218,75 @@ print(f"Optimal number of max_features: {optimal_max_features}")
 """
 
 ######################################
+# Hyperparameter Tuning criterion
+######################################
+
+# Define the range of criterion
+criterion_range = ['gini', 'entropy', 'log_loss']
+
+# Initialize lists to store accuracies for each split
+all_train_accuracies = []
+all_val_accuracies = []
+
+# Perform the calculations with different splits
+for i in range(5):
+    print(f"Iteration {i+1}")
+    # Split the training data into training and validation sets
+    X_train_split, X_val, y_train_split, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=i)
+    
+    # Initialize lists to store accuracies for this split
+    train_accuracies = []
+    val_accuracies = []
+    
+    # Iterate over the range of criterion
+    for criterion in criterion_range:
+        print(f"Training with criterion={criterion}")
+        # Initialize the random forest model
+        rf_model = RandomForestClassifier(n_estimators=optimal_n_estimators, max_features=optimal_max_features, criterion=criterion, random_state=0)
+        
+        # Train the model
+        rf_model.fit(X_train_split, y_train_split)
+        
+        # Calculate accuracy on the training set
+        train_accuracy = rf_model.score(X_train_split, y_train_split)
+        train_accuracies.append(train_accuracy)
+        
+        # Calculate accuracy on the validation set
+        val_accuracy = rf_model.score(X_val, y_val)
+        val_accuracies.append(val_accuracy)
+    
+    # Store the accuracies for this split
+    all_train_accuracies.append(train_accuracies)
+    all_val_accuracies.append(val_accuracies)
+
+# Calculate the mean accuracies across all splits
+mean_train_accuracies = np.mean(all_train_accuracies, axis=0)
+mean_val_accuracies = np.mean(all_val_accuracies, axis=0)
+
+# Plot the accuracies
+plt.figure(figsize=(10, 6))
+sns.lineplot(x=criterion_range, y=mean_train_accuracies, label='Training Accuracy')
+sns.lineplot(x=criterion_range, y=mean_val_accuracies, label='Validation Accuracy')
+plt.xlabel('Criterion')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy vs. Criterion')
+plt.legend()
+
+# Mark the optimal criterion
+optimal_criterion = criterion_range[np.argmax(mean_val_accuracies)]
+plt.axvline(optimal_criterion, color='r', linestyle='--', label=f'Optimal criterion: {optimal_criterion}')
+plt.legend()
+plt.show()
+
+# Print the optimal criterion
+print(f"Optimal criterion: {optimal_criterion}")
+
+######################################
 # Training Random Forest Model
 ######################################
 
-# Initialize the random forest model with the optimal number of max_features
-rf_model = RandomForestClassifier(n_estimators=optimal_n_estimators, max_features=optimal_max_features, random_state=0)
+# Initialize the random forest model with the optimal criterion
+rf_model = RandomForestClassifier(n_estimators=optimal_n_estimators, max_features=optimal_max_features, criterion=optimal_criterion, random_state=0)
 
 # Train the model
 rf_model.fit(X_train, y_train)
