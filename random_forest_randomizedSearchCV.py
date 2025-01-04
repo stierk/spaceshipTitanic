@@ -84,18 +84,19 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 ######################################
 
 # Check if the model already exists
-model_path = 'model/best_rf_model_randomSearchCV.pkl'
-if os.path.exists(model_path):
+model_path_random = 'model/best_rf_model_randomSearchCV.pkl'
+params_path_random = 'model/params_rf_model_randomSearchCV.txt'
+if os.path.exists(model_path_random):
     # Load the model
-    best_rf_model_randomSearchCV = joblib.load(model_path)
+    best_rf_model_randomSearchCV = joblib.load(model_path_random)
     print("Loaded existing RandomizedSearchCV model.")
 else:
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start=200, stop=2000, num=10)]
+    n_estimators = [int(x) for x in np.linspace(start=200, stop=2000, num=3)]
     # Number of features to consider at every split
     max_features = ['log2', 'sqrt']
     # Maximum number of levels in tree
-    max_depth = [int(x) for x in np.linspace(10, 110, num=11)]
+    max_depth = [int(x) for x in np.linspace(10, 110, num=3)]
     max_depth.append(None)
     # Minimum number of samples required to split a node
     min_samples_split = [2, 5, 10]
@@ -122,52 +123,73 @@ else:
     rf_random.fit(X_train, y_train)
 
     # Print the best parameters
-    print(f"Best parameters found: {rf_random.best_params_}")
+    best_params_random = rf_random.best_params_
+    print(f"Best parameters found: {best_params_random}")
+
+    # Save the best parameters to a text file
+    with open(params_path_random, 'w') as f:
+        f.write(str(best_params_random))
 
     # Use the best model
     best_rf_model_randomSearchCV = rf_random.best_estimator_
 
     # Save the model
     os.makedirs('model', exist_ok=True)
-    joblib.dump(best_rf_model_randomSearchCV, model_path)
+    joblib.dump(best_rf_model_randomSearchCV, model_path_random)
     print("Saved RandomizedSearchCV model.")
 
+# Check if the GridSearchCV model already exists
+model_path_grid = 'model/best_rf_model_gridSearchCV.pkl'
+params_path_grid = 'model/params_rf_model_gridSearchCV.txt'
+if os.path.exists(model_path_grid):
+    # Load the model
+    best_rf_model_gridSearchCV = joblib.load(model_path_grid)
+    print("Loaded existing GridSearchCV model.")
+else:
+    # Number of trees in random forest
+    n_estimators = [int(x) for x in np.linspace(start=1400, stop=1800, num=5)]
+    # Number of features to consider at every split
+    max_features = ['log2', 'sqrt']
+    # Maximum number of levels in tree
+    max_depth = []#[int(x) for x in np.linspace(10, 110, num=11)]
+    max_depth.append(None)
+    # Minimum number of samples required to split a node
+    min_samples_split = [int(x) for x in np.linspace(start=8, stop=12, num=2)]
+    # Minimum number of samples required at each leaf node
+    min_samples_leaf = [1, 2]
+    # Method of selecting samples for training each tree
+    bootstrap = [True, False]
 
-# Number of trees in random forest
-n_estimators = [int(x) for x in np.linspace(start=1400, stop=1800, num=100)]
-# Number of features to consider at every split
-max_features = ['log2', 'sqrt']
-# Maximum number of levels in tree
-max_depth = []#[int(x) for x in np.linspace(10, 110, num=11)]
-max_depth.append(None)
-# Minimum number of samples required to split a node
-min_samples_split = [int(x) for x in np.linspace(start=8, stop=12, num=2)]
-# Minimum number of samples required at each leaf node
-min_samples_leaf = [1, 2]
-# Method of selecting samples for training each tree
-bootstrap = [True, False]
+    # Create the random grid
+    param_grid = {
+        'n_estimators': n_estimators,
+        'max_features': max_features,
+        'max_depth': max_depth,
+        'min_samples_split': min_samples_split,
+        'min_samples_leaf': min_samples_leaf,
+        'bootstrap': bootstrap
+    }
 
-# Create the random grid
-param_grid = {
-    'n_estimators': n_estimators,
-    'max_features': max_features,
-    'max_depth': max_depth,
-    'min_samples_split': min_samples_split,
-    'min_samples_leaf': min_samples_leaf,
-    'bootstrap': bootstrap
-}
+    grid_search = GridSearchCV(estimator=best_rf_model_randomSearchCV, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2)
+    grid_search.fit(X_train, y_train)
 
-grid_search = GridSearchCV(estimator=best_rf_model_randomSearchCV, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2)
-grid_search.fit(X_train, y_train)
+    # Print the best parameters from GridSearchCV
+    best_params_grid = grid_search.best_params_
+    print(f"Best parameters found by GridSearchCV: {best_params_grid}")
 
-# Print the best parameters from GridSearchCV
-print(f"Best parameters found by GridSearchCV: {grid_search.best_params_}")
+    # Save the best parameters to a text file
+    with open(params_path_grid, 'w') as f:
+        f.write(str(best_params_grid))
 
-# Use the best model from GridSearchCV
-best_rf_model = grid_search.best_estimator_
+    # Use the best model from GridSearchCV
+    best_rf_model_gridSearchCV = grid_search.best_estimator_
+
+    # Save the model
+    joblib.dump(best_rf_model_gridSearchCV, model_path_grid)
+    print("Saved GridSearchCV model.")
 
 # Make predictions
-y_pred_rf = best_rf_model.predict(X_test)
+y_pred_rf = best_rf_model_gridSearchCV.predict(X_test)
 
 # Evaluate the model
 mse_rf = mean_squared_error(y_test, y_pred_rf)
@@ -197,7 +219,7 @@ test_df, _, dropped_rows = preprocess_data(test_df, label_encoder)
 passenger_ids = passenger_ids[~passenger_ids.isin(dropped_rows['PassengerId'])]
 
 # Predict the Transported column using the Random Forest model
-predictions = best_rf_model.predict(test_df)
+predictions = best_rf_model_gridSearchCV.predict(test_df)
 
 # Create a DataFrame with PassengerId and the predicted Transported column
 output_df = pd.DataFrame({'PassengerId': passenger_ids, 'Transported': predictions})
