@@ -92,16 +92,16 @@ if os.path.exists(model_path_random):
     print("Loaded existing RandomizedSearchCV model.")
 else:
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start=200, stop=2000, num=3)]
+    n_estimators = [int(x) for x in np.linspace(start=1000, stop=2000, num=3)]
     # Number of features to consider at every split
     max_features = ['log2', 'sqrt']
     # Maximum number of levels in tree
-    max_depth = [int(x) for x in np.linspace(10, 110, num=3)]
+    max_depth = [int(x) for x in np.linspace(10, 200, num=10)]
     max_depth.append(None)
     # Minimum number of samples required to split a node
-    min_samples_split = [2, 5, 10]
+    min_samples_split = [1, 2, 5, 10, 30, 100]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [1, 2, 4]
+    min_samples_leaf = [1, 2, 5, 10, 30, 100]
     # Method of selecting samples for training each tree
     bootstrap = [True, False]
 
@@ -147,18 +147,18 @@ if os.path.exists(model_path_grid):
     print("Loaded existing GridSearchCV model.")
 else:
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start=1400, stop=1800, num=5)]
+    n_estimators = [int(x) for x in np.linspace(start=800, stop=1200, num=5)]
     # Number of features to consider at every split
-    max_features = ['log2', 'sqrt']
+    max_features = ['sqrt','log2']
     # Maximum number of levels in tree
     max_depth = []#[int(x) for x in np.linspace(10, 110, num=11)]
     max_depth.append(None)
     # Minimum number of samples required to split a node
-    min_samples_split = [int(x) for x in np.linspace(start=8, stop=12, num=2)]
+    min_samples_split = [int(x) for x in np.linspace(start=8, stop=12, num=3)]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [1, 2]
+    min_samples_leaf = [1, 2, 5]
     # Method of selecting samples for training each tree
-    bootstrap = [True, False]
+    bootstrap = [True]
 
     # Create the random grid
     param_grid = {
